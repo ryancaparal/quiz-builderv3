@@ -685,6 +685,9 @@
             const [currentQuiz, setCurrentQuiz] = useState(defaultQuizTemplate);
             const [savedQuizzes, setSavedQuizzes] = useState([]);
             const [playerOnly, setPlayerOnly] = useState(false);
+            const [isAuthenticated, setIsAuthenticated] = useState(false);
+            const [showLogin, setShowLogin] = useState(false);
+            const [hasPassword, setHasPassword] = useState(false);
 
             useEffect(() => {
                 // Check URL parameters for player-only mode
@@ -693,7 +696,7 @@
                 const embedMode = urlParams.get('mode');
                 
                 if (embedMode === 'player' && quizId) {
-                    // Player-only mode for embedding
+                    // Player-only mode for embedding (no auth needed)
                     setPlayerOnly(true);
                     setMode('player');
                     
@@ -707,7 +710,24 @@
                         }
                     }
                 } else {
-                    // Normal mode - load saved quizzes
+                    // Admin mode - check authentication
+                    const savedPassword = localStorage.getItem('admin_password');
+                    const sessionAuth = sessionStorage.getItem('admin_authenticated');
+                    
+                    if (savedPassword) {
+                        setHasPassword(true);
+                        if (sessionAuth === 'true') {
+                            setIsAuthenticated(true);
+                        } else {
+                            setShowLogin(true);
+                        }
+                    } else {
+                        // No password set yet - show setup
+                        setIsAuthenticated(false);
+                        setShowLogin(true);
+                    }
+                    
+                    // Load saved quizzes
                     const saved = localStorage.getItem('quizzes');
                     if (saved) {
                         setSavedQuizzes(JSON.parse(saved));
@@ -745,64 +765,246 @@
                 setCurrentQuiz(newQuiz);
             };
 
+            const handleLogout = () => {
+                sessionStorage.removeItem('admin_authenticated');
+                setIsAuthenticated(false);
+                setShowLogin(true);
+            };
+
             return (
                 <div className="min-h-screen bg-gray-50">
-                    {/* Top Navigation - Hidden in player-only mode */}
-                    {!playerOnly && (
-                        <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 card-shadow">
-                            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                                <div className="flex justify-between items-center h-16">
-                                    <div className="flex items-center space-x-3">
-                                        <span className="text-3xl">🎯</span>
-                                        <span className="text-xl font-bold text-gray-800">Quiz Builder Pro</span>
-                                    </div>
-                                    <div className="flex space-x-2">
-                                        <button
-                                            onClick={() => setMode('admin')}
-                                            className={`px-6 py-2 rounded-lg font-semibold transition-all ${
-                                                mode === 'admin'
-                                                    ? 'bg-purple-600 text-white'
-                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                            }`}
-                                        >
-                                            ⚙️ Admin
-                                        </button>
-                                        <button
-                                            onClick={() => setMode('player')}
-                                            className={`px-6 py-2 rounded-lg font-semibold transition-all ${
-                                                mode === 'player'
-                                                    ? 'bg-purple-600 text-white'
-                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                            }`}
-                                        >
-                                            👁️ Preview
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </nav>
+                    {/* Show login screen if not authenticated and not in player-only mode */}
+                    {!playerOnly && showLogin && !isAuthenticated && (
+                        <LoginSetup 
+                            hasPassword={hasPassword}
+                            onAuthenticated={() => {
+                                setIsAuthenticated(true);
+                                setShowLogin(false);
+                            }}
+                        />
                     )}
 
-                    {/* Main Content */}
-                    {playerOnly ? (
-                        // Player-only mode (for embedding)
-                        <QuizPlayer quiz={currentQuiz} />
-                    ) : (
-                        // Normal mode (admin + preview)
+                    {/* Show main app only if authenticated or in player-only mode */}
+                    {(isAuthenticated || playerOnly) && (
                         <>
-                            {mode === 'admin' ? (
-                                <AdminPanel
-                                    quiz={currentQuiz}
-                                    onSave={saveQuiz}
-                                    onLoad={loadQuiz}
-                                    onNew={createNewQuiz}
-                                    savedQuizzes={savedQuizzes}
-                                />
-                            ) : (
+                            {/* Top Navigation - Hidden in player-only mode */}
+                            {!playerOnly && (
+                                <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 card-shadow">
+                                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                                        <div className="flex justify-between items-center h-16">
+                                            <div className="flex items-center space-x-3">
+                                                <span className="text-3xl">🎯</span>
+                                                <span className="text-xl font-bold text-gray-800">Quiz Builder Pro</span>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <button
+                                                    onClick={() => setMode('admin')}
+                                                    className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+                                                        mode === 'admin'
+                                                            ? 'bg-purple-600 text-white'
+                                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                    }`}
+                                                >
+                                                    ⚙️ Admin
+                                                </button>
+                                                <button
+                                                    onClick={() => setMode('player')}
+                                                    className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+                                                        mode === 'player'
+                                                            ? 'bg-purple-600 text-white'
+                                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                    }`}
+                                                >
+                                                    👁️ Preview
+                                                </button>
+                                                <button
+                                                    onClick={handleLogout}
+                                                    className="px-4 py-2 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition-all"
+                                                    title="Logout"
+                                                >
+                                                    🚪 Logout
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </nav>
+                            )}
+
+                            {/* Main Content */}
+                            {playerOnly ? (
+                                // Player-only mode (for embedding)
                                 <QuizPlayer quiz={currentQuiz} />
+                            ) : (
+                                // Normal mode (admin + preview)
+                                <>
+                                    {mode === 'admin' ? (
+                                        <AdminPanel
+                                            quiz={currentQuiz}
+                                            onSave={saveQuiz}
+                                            onLoad={loadQuiz}
+                                            onNew={createNewQuiz}
+                                            savedQuizzes={savedQuizzes}
+                                        />
+                                    ) : (
+                                        <QuizPlayer quiz={currentQuiz} />
+                                    )}
+                                </>
                             )}
                         </>
                     )}
+                </div>
+            );
+        }
+
+        // Login/Setup Component
+        function LoginSetup({ hasPassword, onAuthenticated }) {
+            const [password, setPassword] = useState('');
+            const [confirmPassword, setConfirmPassword] = useState('');
+            const [error, setError] = useState('');
+            const [isSetup, setIsSetup] = useState(!hasPassword);
+
+            const handleSetup = (e) => {
+                e.preventDefault();
+                setError('');
+
+                if (password.length < 6) {
+                    setError('Password must be at least 6 characters');
+                    return;
+                }
+
+                if (password !== confirmPassword) {
+                    setError('Passwords do not match');
+                    return;
+                }
+
+                // Save password (hashed with simple method)
+                const hashedPassword = btoa(password); // Simple encoding
+                localStorage.setItem('admin_password', hashedPassword);
+                sessionStorage.setItem('admin_authenticated', 'true');
+                onAuthenticated();
+            };
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                setError('');
+
+                const savedPassword = localStorage.getItem('admin_password');
+                const hashedInput = btoa(password);
+
+                if (hashedInput === savedPassword) {
+                    sessionStorage.setItem('admin_authenticated', 'true');
+                    onAuthenticated();
+                } else {
+                    setError('Incorrect password');
+                    setPassword('');
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4" style={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                }}>
+                    <div className="w-full max-w-md">
+                        <div className="bg-white rounded-3xl p-8 card-shadow-lg fade-in">
+                            <div className="text-center mb-8">
+                                <div className="text-6xl mb-4">🔐</div>
+                                <h1 className="text-3xl font-bold text-gray-800 mb-2">
+                                    {isSetup ? 'Setup Admin Password' : 'Admin Login'}
+                                </h1>
+                                <p className="text-gray-600">
+                                    {isSetup 
+                                        ? 'Create a secure password to protect your Quiz Builder'
+                                        : 'Enter your password to access the admin panel'
+                                    }
+                                </p>
+                            </div>
+
+                            <form onSubmit={isSetup ? handleSetup : handleLogin} className="space-y-4">
+                                {isSetup ? (
+                                    <>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                Create Password
+                                            </label>
+                                            <input
+                                                type="password"
+                                                value={password}
+                                                onChange={(e) => setPassword(e.target.value)}
+                                                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none text-lg"
+                                                placeholder="Enter password (min 6 characters)"
+                                                required
+                                                autoFocus
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                Confirm Password
+                                            </label>
+                                            <input
+                                                type="password"
+                                                value={confirmPassword}
+                                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none text-lg"
+                                                placeholder="Confirm password"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                            <p className="text-xs text-blue-800">
+                                                <strong>💡 Important:</strong> Remember this password! It's stored locally on this device. If you forget it, you'll need to reset your browser data.
+                                            </p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Password
+                                        </label>
+                                        <input
+                                            type="password"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none text-lg"
+                                            placeholder="Enter your password"
+                                            required
+                                            autoFocus
+                                        />
+                                    </div>
+                                )}
+
+                                {error && (
+                                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 fade-in">
+                                        <p className="text-sm text-red-800 font-semibold">❌ {error}</p>
+                                    </div>
+                                )}
+
+                                <button
+                                    type="submit"
+                                    className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-lg font-semibold hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                                >
+                                    {isSetup ? '🔒 Setup Password' : '🔓 Login'}
+                                </button>
+                            </form>
+
+                            {!isSetup && (
+                                <div className="mt-6 text-center">
+                                    <button
+                                        onClick={() => {
+                                            if (confirm('⚠️ This will delete your current password and all saved quizzes. Are you sure?')) {
+                                                localStorage.removeItem('admin_password');
+                                                localStorage.removeItem('quizzes');
+                                                sessionStorage.removeItem('admin_authenticated');
+                                                window.location.reload();
+                                            }
+                                        }}
+                                        className="text-sm text-gray-500 hover:text-gray-700 underline"
+                                    >
+                                        Forgot password? Reset everything
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             );
         }
@@ -2221,6 +2423,57 @@
                                         >
                                             🔁 Create Duplicate
                                         </button>
+                                    </div>
+
+                                    {/* Security Settings */}
+                                    <div className="bg-gradient-to-br from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-6">
+                                        <div className="flex items-center mb-3">
+                                            <div className="text-3xl mr-3">🔐</div>
+                                            <h3 className="text-xl font-bold text-gray-800">Security Settings</h3>
+                                        </div>
+                                        <p className="text-sm text-gray-600 mb-4">Manage your admin password and security</p>
+                                        
+                                        <div className="space-y-3">
+                                            <button
+                                                onClick={() => {
+                                                    const oldPassword = prompt('Enter your current password:');
+                                                    if (!oldPassword) return;
+                                                    
+                                                    const savedPassword = localStorage.getItem('admin_password');
+                                                    const hashedOld = btoa(oldPassword);
+                                                    
+                                                    if (hashedOld !== savedPassword) {
+                                                        alert('❌ Incorrect current password');
+                                                        return;
+                                                    }
+                                                    
+                                                    const newPassword = prompt('Enter new password (min 6 characters):');
+                                                    if (!newPassword || newPassword.length < 6) {
+                                                        alert('❌ Password must be at least 6 characters');
+                                                        return;
+                                                    }
+                                                    
+                                                    const confirmNew = prompt('Confirm new password:');
+                                                    if (newPassword !== confirmNew) {
+                                                        alert('❌ Passwords do not match');
+                                                        return;
+                                                    }
+                                                    
+                                                    const hashedNew = btoa(newPassword);
+                                                    localStorage.setItem('admin_password', hashedNew);
+                                                    alert('✅ Password changed successfully!');
+                                                }}
+                                                className="w-full px-6 py-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition-all"
+                                            >
+                                                🔑 Change Password
+                                            </button>
+                                            
+                                            <div className="bg-white rounded-lg p-3 border border-orange-200">
+                                                <p className="text-xs text-orange-800">
+                                                    <strong>⚠️ Security Note:</strong> Your password is stored locally on this device. Make sure to remember it!
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}
